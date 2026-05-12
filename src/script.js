@@ -32,6 +32,37 @@ function labelify(slug) {
     .replace(/(\d+)/, ' $1');
 }
 
+const ROUTE_ROOTS = new Set([
+  'resource',
+  'search',
+  'settings',
+  'year-1',
+  'year-2',
+  'year-3',
+  'year-4',
+]);
+
+function detectBasePath(pathname = window.location.pathname) {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length === 0) return '';
+  if (ROUTE_ROOTS.has(parts[0])) return '';
+  return `/${parts[0]}`;
+}
+
+const BASE_PATH = detectBasePath();
+
+function withBase(path) {
+  if (!path.startsWith('/')) return path;
+  return BASE_PATH ? `${BASE_PATH}${path}` : path;
+}
+
+function stripBasePath(pathname = window.location.pathname) {
+  if (!BASE_PATH) return pathname;
+  return pathname.startsWith(BASE_PATH)
+    ? (pathname.slice(BASE_PATH.length) || '/')
+    : pathname;
+}
+
 function resourcesByYear(year) {
   return RESOURCES_DATA.filter(r => r.year === year);
 }
@@ -143,15 +174,31 @@ function navigate(page, opts = {}) {
 }
 
 function buildURL(page, opts = {}) {
+  let path = '/';
   switch (page) {
-    case 'home':     return '/';
-    case 'year':     return `/${opts.year}${opts.sem ? '/' + opts.sem : ''}`;
-    case 'subject':  return `/${opts.year}/${opts.sem}/${opts.subject}`;
-    case 'resource': return `/resource/${opts.slug}`;
-    case 'search':   return `/search${opts.query ? '?q=' + encodeURIComponent(opts.query) : ''}`;
-    case 'settings': return '/settings';
-    default:         return '/';
+    case 'home':
+      path = '/';
+      break;
+    case 'year':
+      path = `/${opts.year}${opts.sem ? '/' + opts.sem : ''}`;
+      break;
+    case 'subject':
+      path = `/${opts.year}/${opts.sem}/${opts.subject}`;
+      break;
+    case 'resource':
+      path = `/resource/${opts.slug}`;
+      break;
+    case 'search':
+      path = `/search${opts.query ? '?q=' + encodeURIComponent(opts.query) : ''}`;
+      break;
+    case 'settings':
+      path = '/settings';
+      break;
+    default:
+      path = '/';
+      break;
   }
+  return withBase(path);
 }
 
 // Back navigation
@@ -507,7 +554,7 @@ function renderResourcePage() {
 function renderViewer(r) {
   if (r.type === 'pdf') {
     return `<iframe class="viewer-iframe"
-      src="${r.path}"
+      src="${withBase(r.path)}"
       title="${r.title}"
       onerror="showViewerError()"
     ></iframe>`;
@@ -515,7 +562,7 @@ function renderViewer(r) {
 
   if (r.type === 'jpg' || r.type === 'jpeg' || r.type === 'image') {
     return `<img class="viewer-img"
-      src="${r.path}"
+      src="${withBase(r.path)}"
       alt="${r.title}"
       onerror="showViewerError()"
     />`;
@@ -728,7 +775,7 @@ function closeHeaderSearch() {
 function handleDownload(event, path, filename) {
   event.stopPropagation();
   const a = document.createElement('a');
-  a.href = path;
+  a.href = withBase(path);
   a.download = filename;
   a.target = '_blank';
   a.rel = 'noopener';
@@ -739,7 +786,7 @@ function handleDownload(event, path, filename) {
 }
 
 function handleShare(slug, title) {
-  const url = `${location.origin}/resource/${slug}`;
+  const url = `${location.origin}${withBase(`/resource/${slug}`)}`;
   if (navigator.share) {
     navigator.share({ title: title, url: url })
       .then(() => toast('Shared successfully', '🔗'))
@@ -762,7 +809,7 @@ function init() {
   setupHeaderSearch();
 
   // Parse current URL for deep linking
-  const path = location.pathname;
+  const path = stripBasePath(location.pathname);
   const parts = path.split('/').filter(Boolean);
 
   if (path === '/' || parts.length === 0) {
