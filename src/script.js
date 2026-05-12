@@ -36,24 +36,31 @@ const ROUTE_ROOTS = new Set([
   'resource',
   'search',
   'settings',
-  'year-1',
-  'year-2',
-  'year-3',
-  'year-4',
 ]);
+
+function isYearRoute(segment) {
+  return /^year-\d+$/.test(segment);
+}
+
+function isRouteRoot(segment) {
+  return ROUTE_ROOTS.has(segment) || isYearRoute(segment);
+}
 
 function detectBasePath(pathname = window.location.pathname) {
   const parts = pathname.split('/').filter(Boolean);
   if (parts.length === 0) return '';
-  if (ROUTE_ROOTS.has(parts[0])) return '';
-  return `/${parts[0]}`;
+  if (isRouteRoot(parts[0])) return '';
+  if (parts.length === 1) return `/${parts[0]}`;
+  return isRouteRoot(parts[1]) ? `/${parts[0]}` : '';
 }
 
 const BASE_PATH = detectBasePath();
 
 function withBase(path) {
-  if (!path.startsWith('/')) return path;
-  return BASE_PATH ? `${BASE_PATH}${path}` : path;
+  if (!BASE_PATH) return path;
+  if (/^[a-z]+:\/\//i.test(path) || path.startsWith('//')) return path;
+  if (path.startsWith('/')) return `${BASE_PATH}${path}`;
+  return `${BASE_PATH}/${path.replace(/^\.?\//, '')}`;
 }
 
 function stripBasePath(pathname = window.location.pathname) {
