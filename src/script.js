@@ -61,7 +61,7 @@ const BASE_PATH = detectBasePath();
 function withBase(path) {
   if (!BASE_PATH) return path;
   if (!path) return BASE_PATH;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith('//')) return path;
+  if (/^[a-zA-Z][a-z0-9+.-]*:\/\//.test(path) || path.startsWith('//')) return path;
   if (path.startsWith('/')) return `${BASE_PATH}${path}`;
   const normalized = path.replace(/^\.?\/*/, '');
   return `${BASE_PATH}/${normalized}`;
@@ -70,8 +70,8 @@ function withBase(path) {
 function stripBasePath(pathname = window.location.pathname) {
   if (!BASE_PATH) return pathname;
   if (!pathname.startsWith(BASE_PATH)) return pathname;
-  const boundary = pathname.charAt(BASE_PATH.length);
-  if (boundary && boundary !== '/') return pathname;
+  const nextChar = pathname.charAt(BASE_PATH.length);
+  if (nextChar && nextChar !== '/') return pathname;
   return pathname.slice(BASE_PATH.length) || '/';
 }
 
