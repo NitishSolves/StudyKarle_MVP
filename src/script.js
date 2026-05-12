@@ -32,6 +32,49 @@ function labelify(slug) {
     .replace(/(\d+)/, ' $1');
 }
 
+const ROUTE_ROOTS = new Set([
+  'resource',
+  'search',
+  'settings',
+]);
+
+function isYearRoute(segment) {
+  return /^year-\d+$/.test(segment);
+}
+
+function isRouteRoot(segment) {
+  return ROUTE_ROOTS.has(segment) || isYearRoute(segment);
+}
+
+// Detect base path when the app is hosted under a subdirectory (e.g., GitHub Pages).
+function detectBasePath(pathname = window.location.pathname) {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length === 0) return '';
+  if (isRouteRoot(parts[0])) return '';
+  if (parts.length === 1) return `/${parts[0]}`;
+  return isRouteRoot(parts[1]) ? `/${parts[0]}` : '';
+}
+
+// Base path is computed on initial load and reused for client-side navigation.
+const BASE_PATH = detectBasePath();
+
+function withBase(path) {
+  if (!BASE_PATH) return path;
+  if (!path) return BASE_PATH;
+  if (/^[a-zA-Z][a-z0-9+.-]*:\/\//.test(path) || path.startsWith('//')) return path;
+  if (path.startsWith('/')) return `${BASE_PATH}${path}`;
+  const normalized = path.replace(/^\.?\/*/, '');
+  return `${BASE_PATH}/${normalized}`;
+}
+
+function stripBasePath(pathname = window.location.pathname) {
+  if (!BASE_PATH) return pathname;
+  if (!pathname.startsWith(BASE_PATH)) return pathname;
+  const nextChar = pathname.charAt(BASE_PATH.length);
+  if (nextChar && nextChar !== '/') return pathname;
+  return pathname.slice(BASE_PATH.length) || '/';
+}
+
 function resourcesByYear(year) {
   return RESOURCES_DATA.filter(r => r.year === year);
 }
@@ -143,15 +186,31 @@ function navigate(page, opts = {}) {
 }
 
 function buildURL(page, opts = {}) {
+  let path = '/';
   switch (page) {
-    case 'home':     return '/';
-    case 'year':     return `/${opts.year}${opts.sem ? '/' + opts.sem : ''}`;
-    case 'subject':  return `/${opts.year}/${opts.sem}/${opts.subject}`;
-    case 'resource': return `/resource/${opts.slug}`;
-    case 'search':   return `/search${opts.query ? '?q=' + encodeURIComponent(opts.query) : ''}`;
-    case 'settings': return '/settings';
-    default:         return '/';
+    case 'home':
+      path = '/';
+      break;
+    case 'year':
+      path = `/${opts.year}${opts.sem ? '/' + opts.sem : ''}`;
+      break;
+    case 'subject':
+      path = `/${opts.year}/${opts.sem}/${opts.subject}`;
+      break;
+    case 'resource':
+      path = `/resource/${opts.slug}`;
+      break;
+    case 'search':
+      path = `/search${opts.query ? '?q=' + encodeURIComponent(opts.query) : ''}`;
+      break;
+    case 'settings':
+      path = '/settings';
+      break;
+    default:
+      path = '/';
+      break;
   }
+  return withBase(path);
 }
 
 // Back navigation
@@ -507,7 +566,7 @@ function renderResourcePage() {
 function renderViewer(r) {
   if (r.type === 'pdf') {
     return `<iframe class="viewer-iframe"
-      src="${r.path}"
+      src="${withBase(r.path)}"
       title="${r.title}"
       onerror="showViewerError()"
     ></iframe>`;
@@ -515,7 +574,7 @@ function renderViewer(r) {
 
   if (r.type === 'jpg' || r.type === 'jpeg' || r.type === 'image') {
     return `<img class="viewer-img"
-      src="${r.path}"
+      src="${withBase(r.path)}"
       alt="${r.title}"
       onerror="showViewerError()"
     />`;
@@ -728,7 +787,7 @@ function closeHeaderSearch() {
 function handleDownload(event, path, filename) {
   event.stopPropagation();
   const a = document.createElement('a');
-  a.href = path;
+  a.href = withBase(path);
   a.download = filename;
   a.target = '_blank';
   a.rel = 'noopener';
@@ -739,7 +798,7 @@ function handleDownload(event, path, filename) {
 }
 
 function handleShare(slug, title) {
-  const url = `${location.origin}/resource/${slug}`;
+  const url = `${location.origin}${withBase(`/resource/${slug}`)}`;
   if (navigator.share) {
     navigator.share({ title: title, url: url })
       .then(() => toast('Shared successfully', '🔗'))
@@ -762,7 +821,7 @@ function init() {
   setupHeaderSearch();
 
   // Parse current URL for deep linking
-  const path = location.pathname;
+  const path = stripBasePath(location.pathname);
   const parts = path.split('/').filter(Boolean);
 
   if (path === '/' || parts.length === 0) {
