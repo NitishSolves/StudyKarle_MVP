@@ -46,6 +46,7 @@ function isRouteRoot(segment) {
   return ROUTE_ROOTS.has(segment) || isYearRoute(segment);
 }
 
+// Detect base path when the app is hosted under a subdirectory (e.g., GitHub Pages).
 function detectBasePath(pathname = window.location.pathname) {
   const parts = pathname.split('/').filter(Boolean);
   if (parts.length === 0) return '';
@@ -54,10 +55,12 @@ function detectBasePath(pathname = window.location.pathname) {
   return isRouteRoot(parts[1]) ? `/${parts[0]}` : '';
 }
 
+// Base path is computed on initial load and reused for client-side navigation.
 const BASE_PATH = detectBasePath();
 
 function withBase(path) {
   if (!BASE_PATH) return path;
+  if (!path) return BASE_PATH;
   if (/^[a-z]+:\/\//i.test(path) || path.startsWith('//')) return path;
   if (path.startsWith('/')) return `${BASE_PATH}${path}`;
   return `${BASE_PATH}/${path.replace(/^\.?\//, '')}`;
