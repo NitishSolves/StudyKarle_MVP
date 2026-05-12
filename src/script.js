@@ -63,15 +63,16 @@ function withBase(path) {
   if (!path) return BASE_PATH;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path) || path.startsWith('//')) return path;
   if (path.startsWith('/')) return `${BASE_PATH}${path}`;
-  const normalized = path.replace(/^\.?\//, '').replace(/^\/+/, '');
+  const normalized = path.replace(/^\.?\/*/, '');
   return `${BASE_PATH}/${normalized}`;
 }
 
 function stripBasePath(pathname = window.location.pathname) {
   if (!BASE_PATH) return pathname;
-  return pathname.startsWith(BASE_PATH)
-    ? (pathname.slice(BASE_PATH.length) || '/')
-    : pathname;
+  if (!pathname.startsWith(BASE_PATH)) return pathname;
+  const boundary = pathname.charAt(BASE_PATH.length);
+  if (boundary && boundary !== '/') return pathname;
+  return pathname.slice(BASE_PATH.length) || '/';
 }
 
 function resourcesByYear(year) {
