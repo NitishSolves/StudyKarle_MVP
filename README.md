@@ -201,6 +201,7 @@ The `vercel.json` handles SPA routing automatically.
 - `login.html` stores users locally in the browser using `localStorage`.
 - Passwords are hashed with SHA-256 plus a per-user salt (no plain-text storage or emails). This is MVP-only and not production-grade — use PBKDF2, bcrypt, scrypt, or Argon2 before any real deployment.
 - Signup notifications are sent via EmailJS. Public key, service ID, and template ID are client-side and should be restricted in the EmailJS dashboard (allowed domains, rate limits) to prevent abuse.
+- Email ownership is not verified in this MVP; accounts are considered local to the current browser only.
 
 ---
 

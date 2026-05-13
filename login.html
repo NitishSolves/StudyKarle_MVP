@@ -42,6 +42,7 @@
     <div class="auth-hero">
       <h1 class="auth-hero-title">Welcome to StudyKarle</h1>
       <p class="auth-hero-sub">Create a simple local account or log in to continue. Passwords are securely hashed and stored only in your browser.</p>
+      <p class="auth-note">MVP-only demo login. Accounts stay on this device and do not verify email ownership.</p>
     </div>
 
     <div class="auth-grid">
@@ -108,7 +109,7 @@
     const USERS_KEY = 'sk-users';
     const CURRENT_USER_KEY = 'sk-current-user';
     const SIGNUP_COOLDOWN_KEY = 'sk-signup-last-at';
-    const SIGNUP_COOLDOWN_MS = 15000;
+    const SIGNUP_COOLDOWN_MS = 60000;
 
     const signupForm = document.getElementById('signup-form');
     const loginForm = document.getElementById('login-form');
@@ -219,7 +220,6 @@
           email,
           salt,
           passwordHash,
-          createdAt: new Date().toISOString(),
         };
         users.push(newUser);
         saveUsers(users);

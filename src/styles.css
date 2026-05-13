@@ -1036,6 +1036,12 @@ main { min-height: calc(100vh - var(--header-h) - 60px); }
   max-width: 640px;
 }
 
+.auth-note {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 .auth-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
