@@ -180,6 +180,12 @@ ul, ol { list-style: none; }
   flex-shrink: 0;
 }
 
+.header-auth-btn {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+}
+
 .icon-btn {
   width: 36px;
   height: 36px;
@@ -1005,6 +1011,113 @@ main { min-height: calc(100vh - var(--header-h) - 60px); }
 .about-desc { font-size: 0.875rem; color: var(--text-secondary); margin: 12px 0; line-height: 1.6; max-width: 380px; margin-left: auto; margin-right: auto; }
 
 /* ============================================================
+   AUTH PAGE
+   ============================================================ */
+
+.auth-page {
+  padding: 40px 0 64px;
+}
+
+.auth-hero {
+  margin: 10px 0 24px;
+}
+
+.auth-hero-title {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: var(--text-primary);
+}
+
+.auth-hero-sub {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  max-width: 640px;
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.auth-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.auth-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 6px 0 18px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: border-color var(--t), box-shadow var(--t), background var(--t);
+  outline: none;
+}
+
+.form-input::placeholder { color: var(--text-muted); }
+.form-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+
+.auth-actions {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-status {
+  min-height: 18px;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.auth-status.success { color: #059669; }
+.auth-status.error { color: #DC2626; }
+
+/* ============================================================
    TOAST
    ============================================================ */
 
@@ -1151,11 +1264,16 @@ main { min-height: calc(100vh - var(--header-h) - 60px); }
 @media (max-width: 480px) {
   .year-cards { grid-template-columns: 1fr; }
   .subject-grid { grid-template-columns: 1fr; }
+  .header-auth-btn { padding: 0 10px; font-size: 0.74rem; }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
   .year-cards { grid-template-columns: 1fr 1fr; }
   .subject-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .auth-grid { grid-template-columns: 1fr; }
 }
 
 /* ============================================================
