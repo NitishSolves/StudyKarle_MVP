@@ -132,11 +132,22 @@
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
     };
 
-    const hashPassword = async (password) => {
+    const createSalt = () => {
+      if (!window.crypto?.getRandomValues) {
+        throw new Error('Secure random generation is not available in this browser.');
+      }
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    };
+
+    const hashPassword = async (password, salt) => {
       if (!window.crypto?.subtle) {
         throw new Error('Secure hashing is not available in this browser.');
       }
-      const data = new TextEncoder().encode(password);
+      const data = new TextEncoder().encode(`${salt}:${password}`);
       const digest = await crypto.subtle.digest('SHA-256', data);
       return Array.from(new Uint8Array(digest))
         .map((b) => b.toString(16).padStart(2, '0'))
@@ -152,7 +163,7 @@
     initEmail.done = false;
 
     const sendSignupEmail = async (name, email) => {
-      if (!window.emailjs) return;
+      if (!window.emailjs) return false;
       initEmail();
       try {
         await emailjs.send('service_jz2ub13', 'template_88cv17l', {
@@ -161,8 +172,10 @@
           to_name: name,
           to_email: email,
         });
+        return true;
       } catch (err) {
         console.warn('EmailJS send failed', err);
+        return false;
       }
     };
 
@@ -186,19 +199,24 @@
       }
 
       try {
-        const passwordHash = await hashPassword(password);
+        const salt = createSalt();
+        const passwordHash = await hashPassword(password, salt);
         const newUser = {
           name,
           email,
+          salt,
           passwordHash,
           createdAt: new Date().toISOString(),
         };
         users.push(newUser);
         saveUsers(users);
         localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ name, email }));
-        setStatus(signupStatus, 'Signup successful! Welcome email sent.', 'success');
+        const emailSent = await sendSignupEmail(name, email);
+        const message = emailSent
+          ? 'Signup successful! Welcome email sent.'
+          : 'Signup successful! Welcome email could not be sent right now.';
+        setStatus(signupStatus, message, 'success');
         signupForm.reset();
-        sendSignupEmail(name, email);
       } catch (err) {
         setStatus(signupStatus, err.message || 'Signup failed. Please try again.', 'error');
       }
@@ -225,7 +243,7 @@
       }
 
       try {
-        const passwordHash = await hashPassword(password);
+        const passwordHash = await hashPassword(password, user.salt || '');
         if (passwordHash !== user.passwordHash) {
           setStatus(loginStatus, 'Incorrect password.', 'error');
           return;
