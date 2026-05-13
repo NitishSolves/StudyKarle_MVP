@@ -103,13 +103,14 @@
 </footer>
 
 <!-- ===================== SCRIPTS ===================== -->
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js" integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3.11.0/dist/email.min.js" integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb" crossorigin="anonymous"></script>
 <script>
   (function() {
     const USERS_KEY = 'sk-users';
     const CURRENT_USER_KEY = 'sk-current-user';
     const SIGNUP_COOLDOWN_KEY = 'sk-signup-last-at';
     const SIGNUP_COOLDOWN_MS = 60000;
+    // Client-side cooldown only; server-side limits are required for production.
     const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
     const SESSION_TTL_MS = MILLISECONDS_PER_DAY * 7;
 
@@ -180,7 +181,7 @@
         .join('');
     };
 
-    // EmailJS keys are public client-side; lock down domains and rate limits in EmailJS.
+    // EmailJS keys are public client-side; lock down domains and rate limits in the EmailJS dashboard.
     const initEmail = () => {
       if (window.emailjs && !initEmail.done) {
         emailjs.init('uXIo2Ei6s0b5ceKAa');
@@ -283,7 +284,7 @@
       }
 
       if (!user.salt) {
-        setStatus(loginStatus, 'Account data is corrupted. Please clear this site\'s data in your browser settings.', 'error');
+        setStatus(loginStatus, 'Account data is incomplete. Please clear this site\'s data in your browser settings to start fresh.', 'error');
         return;
       }
 
