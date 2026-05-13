@@ -61,7 +61,7 @@
           </div>
           <div class="form-field">
             <label for="signup-password">Password</label>
-            <input id="signup-password" name="password" class="form-input" type="password" placeholder="Create a password" autocomplete="new-password" minlength="6" required />
+            <input id="signup-password" name="password" class="form-input" type="password" placeholder="Create a password (min 8 chars)" autocomplete="new-password" minlength="8" required />
           </div>
           <div class="auth-actions">
             <button class="btn btn-primary" type="submit">Sign Up</button>
@@ -107,6 +107,8 @@
   (function() {
     const USERS_KEY = 'sk-users';
     const CURRENT_USER_KEY = 'sk-current-user';
+    const SIGNUP_COOLDOWN_KEY = 'sk-signup-last-at';
+    const SIGNUP_COOLDOWN_MS = 15000;
 
     const signupForm = document.getElementById('signup-form');
     const loginForm = document.getElementById('login-form');
@@ -134,7 +136,7 @@
 
     const createSalt = () => {
       if (!window.crypto?.getRandomValues) {
-        throw new Error('Secure random generation is not available in this browser.');
+        throw new Error('Your browser does not support secure cryptography. Please use a modern browser to sign up.');
       }
       const bytes = new Uint8Array(16);
       crypto.getRandomValues(bytes);
@@ -192,6 +194,17 @@
         return;
       }
 
+      if (password.length < 8) {
+        setStatus(signupStatus, 'Password must be at least 8 characters.', 'error');
+        return;
+      }
+
+      const lastSignupAt = Number(localStorage.getItem(SIGNUP_COOLDOWN_KEY) || 0);
+      if (Date.now() - lastSignupAt < SIGNUP_COOLDOWN_MS) {
+        setStatus(signupStatus, 'Please wait a few seconds before trying again.', 'error');
+        return;
+      }
+
       const users = getUsers();
       if (users.some((user) => user.email === email)) {
         setStatus(signupStatus, 'An account already exists with this email.', 'error');
@@ -211,10 +224,11 @@
         users.push(newUser);
         saveUsers(users);
         localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ name, email }));
+        localStorage.setItem(SIGNUP_COOLDOWN_KEY, String(Date.now()));
         const emailSent = await sendSignupEmail(name, email);
         const message = emailSent
-          ? 'Signup successful! Welcome email sent.'
-          : 'Signup successful! Welcome email could not be sent right now.';
+          ? 'Signup successful! You are now logged in and a welcome email was sent.'
+          : 'Signup successful! You are now logged in (welcome email could not be sent right now).';
         setStatus(signupStatus, message, 'success');
         signupForm.reset();
       } catch (err) {
@@ -242,8 +256,13 @@
         return;
       }
 
+      if (!user.salt) {
+        setStatus(loginStatus, 'This account needs to be reset. Please sign up again.', 'error');
+        return;
+      }
+
       try {
-        const passwordHash = await hashPassword(password, user.salt || '');
+        const passwordHash = await hashPassword(password, user.salt);
         if (passwordHash !== user.passwordHash) {
           setStatus(loginStatus, 'Incorrect password.', 'error');
           return;
