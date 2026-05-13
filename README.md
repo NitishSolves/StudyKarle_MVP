@@ -202,6 +202,8 @@ The `vercel.json` handles SPA routing automatically.
 - Passwords are hashed with SHA-256 plus a per-user salt (no plaintext storage or emails). This is MVP-only and not production-grade — use PBKDF2, bcrypt, scrypt, or Argon2 before any real deployment.
 - Signup notifications are sent via EmailJS. Public key, service ID, and template ID are client-side and should be restricted in the EmailJS dashboard (allowed domains, rate limits) to prevent abuse.
 - Email ownership is not verified in this MVP; accounts are considered local to the current browser only.
+- Login sessions are stored in localStorage with a 7-day expiry; clearing browser data signs you out.
+- Client-side signup cooldowns can be bypassed and are not a substitute for server-side rate limiting.
 
 ---
 

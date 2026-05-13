@@ -42,7 +42,7 @@
     <div class="auth-hero">
       <h1 class="auth-hero-title">Welcome to StudyKarle</h1>
       <p class="auth-hero-sub">Create a simple local account or log in to continue. Passwords are securely hashed and stored only in your browser.</p>
-      <p class="auth-note">MVP-only demo login. Accounts stay on this device and do not verify email ownership.</p>
+      <p class="auth-note">MVP-only demo login. Accounts stay on this device, do not verify email ownership, and use simple hashing that is not production-ready.</p>
     </div>
 
     <div class="auth-grid">
@@ -110,6 +110,7 @@
     const CURRENT_USER_KEY = 'sk-current-user';
     const SIGNUP_COOLDOWN_KEY = 'sk-signup-last-at';
     const SIGNUP_COOLDOWN_MS = 60000;
+    const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
     const signupForm = document.getElementById('signup-form');
     const loginForm = document.getElementById('login-form');
@@ -129,6 +130,27 @@
       } catch (_) {
         return [];
       }
+    };
+
+    const clearInvalidSession = () => {
+      try {
+        const raw = localStorage.getItem(CURRENT_USER_KEY);
+        if (!raw) return;
+        const session = JSON.parse(raw);
+        if (!session?.expiresAt || Date.now() > session.expiresAt) {
+          localStorage.removeItem(CURRENT_USER_KEY);
+        }
+      } catch (_) {
+        localStorage.removeItem(CURRENT_USER_KEY);
+      }
+    };
+
+    const setCurrentUser = (name, email) => {
+      const now = Date.now();
+      localStorage.setItem(
+        CURRENT_USER_KEY,
+        JSON.stringify({ name, email, loggedInAt: now, expiresAt: now + SESSION_TTL_MS })
+      );
     };
 
     const saveUsers = (users) => {
@@ -186,6 +208,7 @@
     signupForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       setStatus(signupStatus, '', '');
+      clearInvalidSession();
 
       const name = signupForm.elements.name.value.trim();
       const email = normalizeEmail(signupForm.elements.email.value);
@@ -224,12 +247,12 @@
         };
         users.push(newUser);
         saveUsers(users);
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ name, email }));
+        setCurrentUser(name, email);
         localStorage.setItem(SIGNUP_COOLDOWN_KEY, String(Date.now()));
         const emailSent = await sendSignupEmail(name, email);
         const message = emailSent
           ? 'Signup successful! You are now logged in and a welcome email was sent.'
-          : 'Signup successful! You are now logged in (welcome email could not be sent right now).';
+          : 'Signup successful! You are now logged in, but we could not send your welcome email.';
         setStatus(signupStatus, message, 'success');
         signupForm.reset();
       } catch (err) {
@@ -240,6 +263,7 @@
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       setStatus(loginStatus, '', '');
+      clearInvalidSession();
 
       const email = normalizeEmail(loginForm.elements.email.value);
       const password = loginForm.elements.password.value;
@@ -258,7 +282,7 @@
       }
 
       if (!user.salt) {
-        setStatus(loginStatus, 'This account needs to be reset. Please sign up again.', 'error');
+        setStatus(loginStatus, 'Account data is corrupted. Please clear StudyKarle data in your browser.', 'error');
         return;
       }
 
@@ -268,7 +292,7 @@
           setStatus(loginStatus, 'Incorrect password.', 'error');
           return;
         }
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ name: user.name, email: user.email }));
+        setCurrentUser(user.name, user.email);
         setStatus(loginStatus, `Welcome back, ${user.name}!`, 'success');
         loginForm.reset();
       } catch (err) {
