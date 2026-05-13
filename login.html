@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="StudyKarle login and signup for quick access to saved resources." />
+  <meta name="theme-color" content="#2563EB" />
+  <title>StudyKarle — Login / Signup</title>
+
+  <script>
+    (function() {
+      const theme = localStorage.getItem('sk-theme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="src/styles.css" />
+
+  <!-- Favicon (inline SVG as data URI) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232563EB'/><text y='22' x='6' font-family='sans-serif' font-weight='700' font-size='16' fill='white'>SK</text></svg>" />
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header class="site-header">
+  <div class="container">
+    <a class="logo" href="/">
+      <div class="logo-mark">SK</div>
+      <span class="logo-name">Study<span>Karle</span></span>
+      <span class="logo-by">by Nitish Kumar</span>
+    </a>
+    <div class="header-actions" style="margin-left:auto;">
+      <a class="btn btn-outline btn-sm header-auth-btn" href="/">Back to Home</a>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== MAIN ===================== -->
+<main class="auth-page">
+  <div class="container">
+    <div class="auth-hero">
+      <h1 class="auth-hero-title">Welcome to StudyKarle</h1>
+      <p class="auth-hero-sub">Create a simple local account or log in to continue. Passwords are securely hashed and stored only in your browser.</p>
+      <p class="auth-note">MVP-only demo login. Accounts stay on this device, do not verify email ownership, and use simple hashing that is not production-ready.</p>
+    </div>
+
+    <div class="auth-grid">
+      <!-- Signup -->
+      <section class="auth-card" aria-labelledby="signup-title">
+        <h2 class="auth-title" id="signup-title">Create account</h2>
+        <p class="auth-sub">We will email you a welcome note after signup.</p>
+
+        <form id="signup-form" class="auth-form" autocomplete="on">
+          <div class="form-field">
+            <label for="signup-name">Full Name</label>
+            <input id="signup-name" name="name" class="form-input" type="text" placeholder="Your name" autocomplete="name" required />
+          </div>
+          <div class="form-field">
+            <label for="signup-email">Email</label>
+            <input id="signup-email" name="email" class="form-input" type="email" placeholder="you@email.com" autocomplete="email" required />
+          </div>
+          <div class="form-field">
+            <label for="signup-password">Password</label>
+            <input id="signup-password" name="password" class="form-input" type="password" placeholder="Create a password (min 8 chars)" autocomplete="new-password" minlength="8" required />
+          </div>
+          <div class="auth-actions">
+            <button class="btn btn-primary" type="submit">Sign Up</button>
+          </div>
+          <p class="auth-status" id="signup-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- Login -->
+      <section class="auth-card" aria-labelledby="login-title">
+        <h2 class="auth-title" id="login-title">Log in</h2>
+        <p class="auth-sub">Use the same email and password you signed up with.</p>
+
+        <form id="login-form" class="auth-form" autocomplete="on">
+          <div class="form-field">
+            <label for="login-email">Email</label>
+            <input id="login-email" name="email" class="form-input" type="email" placeholder="you@email.com" autocomplete="email" required />
+          </div>
+          <div class="form-field">
+            <label for="login-password">Password</label>
+            <input id="login-password" name="password" class="form-input" type="password" placeholder="Your password" autocomplete="current-password" required />
+          </div>
+          <div class="auth-actions">
+            <button class="btn btn-primary" type="submit">Log In</button>
+          </div>
+          <p class="auth-status" id="login-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="site-footer">
+  <div class="container">
+    Made with ❤️ by <a href="https://www.instagram.com/realnitishkumarr/" target="_blank" rel="noopener noreferrer">Nitish Kumar</a>
+  </div>
+</footer>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3.11.0/dist/email.min.js" integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb" crossorigin="anonymous"></script>
+<script>
+  (function() {
+    const USERS_KEY = 'sk-users';
+    const CURRENT_USER_KEY = 'sk-current-user';
+    const SIGNUP_COOLDOWN_KEY = 'sk-signup-last-at';
+    const SIGNUP_COOLDOWN_MS = 60000;
+    // Client-side cooldown only; server-side limits are required for production.
+    const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+    const SESSION_TTL_MS = MILLISECONDS_PER_DAY * 7;
+
+    const signupForm = document.getElementById('signup-form');
+    const loginForm = document.getElementById('login-form');
+    const signupStatus = document.getElementById('signup-status');
+    const loginStatus = document.getElementById('login-status');
+
+    const normalizeEmail = (email) => email.trim().toLowerCase();
+    const setStatus = (el, message, type) => {
+      el.textContent = message;
+      el.className = `auth-status${type ? ' ' + type : ''}`;
+    };
+
+    const getUsers = () => {
+      try {
+        const raw = localStorage.getItem(USERS_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (_) {
+        return [];
+      }
+    };
+
+    const clearInvalidSession = () => {
+      try {
+        const raw = localStorage.getItem(CURRENT_USER_KEY);
+        if (!raw) return;
+        const session = JSON.parse(raw);
+        if (!session?.expiresAt || Date.now() > session.expiresAt) {
+          localStorage.removeItem(CURRENT_USER_KEY);
+        }
+      } catch (_) {
+        localStorage.removeItem(CURRENT_USER_KEY);
+      }
+    };
+
+    const setCurrentUser = (name, email) => {
+      const now = Date.now();
+      localStorage.setItem(
+        CURRENT_USER_KEY,
+        JSON.stringify({ name, email, loggedInAt: now, expiresAt: now + SESSION_TTL_MS })
+      );
+    };
+
+    const saveUsers = (users) => {
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    };
+
+    const createSalt = () => {
+      if (!window.crypto?.getRandomValues) {
+        throw new Error('Your browser does not support secure cryptography. Please use a modern browser.');
+      }
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    };
+
+    const hashPassword = async (password, salt) => {
+      if (!window.crypto?.subtle) {
+        throw new Error('Secure hashing is not available in this browser.');
+      }
+      const data = new TextEncoder().encode(`${salt}:${password}`);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    };
+
+    // EmailJS keys are public client-side; lock down domains and rate limits in the EmailJS dashboard.
+    const initEmail = () => {
+      if (window.emailjs && !initEmail.done) {
+        emailjs.init('uXIo2Ei6s0b5ceKAa');
+        initEmail.done = true;
+      }
+    };
+    initEmail.done = false;
+
+    const sendSignupEmail = async (name, email) => {
+      if (!window.emailjs) return false;
+      initEmail();
+      try {
+        await emailjs.send('service_jz2ub13', 'template_88cv17l', {
+          user_name: name,
+          user_email: email,
+          to_name: name,
+          to_email: email,
+        });
+        return true;
+      } catch (err) {
+        console.warn('EmailJS send failed', err);
+        return false;
+      }
+    };
+
+    signupForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setStatus(signupStatus, '', '');
+      clearInvalidSession();
+
+      const name = signupForm.elements.name.value.trim();
+      const email = normalizeEmail(signupForm.elements.email.value);
+      const password = signupForm.elements.password.value;
+
+      if (!name || !email || !password) {
+        setStatus(signupStatus, 'Please fill in all fields.', 'error');
+        return;
+      }
+
+      const minLength = Number(signupForm.elements.password.getAttribute('minlength')) || 8;
+      if (password.length < minLength) {
+        setStatus(signupStatus, `Password must be at least ${minLength} characters.`, 'error');
+        return;
+      }
+
+      const lastSignupAt = Number(localStorage.getItem(SIGNUP_COOLDOWN_KEY) || 0);
+      if (Date.now() - lastSignupAt < SIGNUP_COOLDOWN_MS) {
+        setStatus(signupStatus, 'Please wait a few seconds before trying again.', 'error');
+        return;
+      }
+
+      const users = getUsers();
+      if (users.some((user) => user.email === email)) {
+        setStatus(signupStatus, 'An account already exists with this email.', 'error');
+        return;
+      }
+
+      try {
+        const salt = createSalt();
+        const passwordHash = await hashPassword(password, salt);
+        const newUser = {
+          name,
+          email,
+          salt,
+          passwordHash,
+        };
+        users.push(newUser);
+        saveUsers(users);
+        setCurrentUser(name, email);
+        localStorage.setItem(SIGNUP_COOLDOWN_KEY, String(Date.now()));
+        const emailSent = await sendSignupEmail(name, email);
+        const message = emailSent
+          ? 'Signup successful! You are now logged in and a welcome email was sent.'
+          : 'Signup successful! You are now logged in, but we could not send your welcome email.';
+        setStatus(signupStatus, message, 'success');
+        signupForm.reset();
+      } catch (err) {
+        setStatus(signupStatus, err.message || 'Signup failed. Please try again.', 'error');
+      }
+    });
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setStatus(loginStatus, '', '');
+      clearInvalidSession();
+
+      const email = normalizeEmail(loginForm.elements.email.value);
+      const password = loginForm.elements.password.value;
+
+      if (!email || !password) {
+        setStatus(loginStatus, 'Please enter your email and password.', 'error');
+        return;
+      }
+
+      const users = getUsers();
+      const user = users.find((u) => u.email === email);
+
+      if (!user) {
+        setStatus(loginStatus, 'No account found with this email.', 'error');
+        return;
+      }
+
+      if (!user.salt) {
+        setStatus(loginStatus, 'This account has incomplete data. Please use a different email or contact support.', 'error');
+        return;
+      }
+
+      try {
+        const passwordHash = await hashPassword(password, user.salt);
+        if (passwordHash !== user.passwordHash) {
+          setStatus(loginStatus, 'Incorrect password.', 'error');
+          return;
+        }
+        setCurrentUser(user.name, user.email);
+        setStatus(loginStatus, `Welcome back, ${user.name}!`, 'success');
+        loginForm.reset();
+      } catch (err) {
+        setStatus(loginStatus, err.message || 'Login failed. Please try again.', 'error');
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
