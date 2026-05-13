@@ -157,6 +157,7 @@
         .join('');
     };
 
+    // EmailJS keys are public client-side; lock down domains and rate limits in EmailJS.
     const initEmail = () => {
       if (window.emailjs && !initEmail.done) {
         emailjs.init('uXIo2Ei6s0b5ceKAa');
