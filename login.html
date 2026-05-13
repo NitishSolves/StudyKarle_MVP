@@ -161,7 +161,7 @@
 
     const createSalt = () => {
       if (!window.crypto?.getRandomValues) {
-        throw new Error('Your browser does not support secure cryptography. Please use a modern browser to sign up.');
+        throw new Error('Your browser does not support secure cryptography. Please use a modern browser.');
       }
       const bytes = new Uint8Array(16);
       crypto.getRandomValues(bytes);
@@ -221,8 +221,9 @@
         return;
       }
 
-      if (password.length < 8) {
-        setStatus(signupStatus, 'Password must be at least 8 characters.', 'error');
+      const minLength = Number(signupForm.elements.password.getAttribute('minlength')) || 8;
+      if (password.length < minLength) {
+        setStatus(signupStatus, `Password must be at least ${minLength} characters.`, 'error');
         return;
       }
 
@@ -284,7 +285,7 @@
       }
 
       if (!user.salt) {
-        setStatus(loginStatus, 'Account data is incomplete. Please clear this site\'s data in your browser settings to start fresh.', 'error');
+        setStatus(loginStatus, 'This account has incomplete data. Please use a different email or contact support.', 'error');
         return;
       }
 
