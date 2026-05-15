@@ -349,6 +349,7 @@ function registerFailedLogin(email) {
   const nextCount = prevCount + 1;
   const now = Date.now();
   const lockUntil = nextCount >= LOGIN_MAX_ATTEMPTS ? (now + LOGIN_LOCK_MS) : 0;
+  // Keep count capped at max while locked to preserve a stable "attempts exceeded" state.
   state[email] = { count: lockUntil ? LOGIN_MAX_ATTEMPTS : nextCount, lockUntil };
   setLoginGuardState(state);
   return lockUntil ? (lockUntil - now) : 0;
