@@ -89,7 +89,10 @@ const OTP_TTL_MS    = 5 * 60 * 1000; // OTP valid for 5 minutes
 const OTP_LENGTH    = 6;             // 6-digit numeric OTP
 const OTP_SESSION_KEY = 'sk_pending_otp'; // sessionStorage key for pending OTP data
 const OTP_RATE_LIMIT_MS = 60 * 1000; // minimum delay between OTP sends
-const OTP_RATE_LIMIT_KEY = 'lastOtpTime';
+const OTP_RATE_LIMIT_KEY = 'sk_last_otp_send';
+const LOGIN_GUARD_KEY = 'sk_login_guard';
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 2 * 60 * 1000;
 
 // ── Internal OTP countdown handle ────────────────────────────
 let _otpCountdownInterval = null;
@@ -259,13 +262,13 @@ async function sendOTPEmail(name, email, otpCode) {
 /* ----------------------------------------------------------
    OTP PENDING STATE  (stored in sessionStorage, not localStorage)
    sessionStorage is cleared automatically when the tab/browser closes,
-   so stale OTPs don't linger. Plain text OTP is only kept temporarily
-   in session memory — it is NOT saved to localStorage with the user.
+   so stale OTPs don't linger. OTP is stored as a hash in session memory
+   and is NOT saved to localStorage with the user.
    ---------------------------------------------------------- */
 
 /**
  * Saves the pending OTP data to sessionStorage.
- * @param {{ name, email, hashedPassword, otpCode, expiresAt }} data
+ * @param {{ name, email, hashedPassword, otpHash, expiresAt }} data
  */
 function savePendingOTP(data) {
   sessionStorage.setItem(OTP_SESSION_KEY, JSON.stringify(data));
@@ -284,6 +287,69 @@ function getPendingOTP() {
 /** Clears the pending OTP from sessionStorage. */
 function clearPendingOTP() {
   sessionStorage.removeItem(OTP_SESSION_KEY);
+}
+
+function getOTPRateLimitState() {
+  try {
+    const raw = sessionStorage.getItem(OTP_RATE_LIMIT_KEY);
+    if (!raw) return { email: '', time: 0 };
+    const parsed = JSON.parse(raw);
+    return {
+      email: typeof parsed.email === 'string' ? parsed.email : '',
+      time: Number.isFinite(parsed.time) ? parsed.time : 0,
+    };
+  } catch {
+    return { email: '', time: 0 };
+  }
+}
+
+function setOTPRateLimitState(email, time) {
+  sessionStorage.setItem(OTP_RATE_LIMIT_KEY, JSON.stringify({ email, time }));
+}
+
+function getOTPCooldownRemainingMs(email) {
+  const state = getOTPRateLimitState();
+  if (!email || state.email !== email) return 0;
+  const elapsed = Date.now() - state.time;
+  return elapsed < OTP_RATE_LIMIT_MS ? (OTP_RATE_LIMIT_MS - elapsed) : 0;
+}
+
+function getLoginGuardState() {
+  try {
+    const raw = sessionStorage.getItem(LOGIN_GUARD_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setLoginGuardState(state) {
+  sessionStorage.setItem(LOGIN_GUARD_KEY, JSON.stringify(state));
+}
+
+function getLoginGuardForEmail(email) {
+  const state = getLoginGuardState();
+  const entry = state[email];
+  return {
+    count: Number.isFinite(entry?.count) ? entry.count : 0,
+    lockUntil: Number.isFinite(entry?.lockUntil) ? entry.lockUntil : 0,
+  };
+}
+
+function resetLoginGuard(email) {
+  const state = getLoginGuardState();
+  delete state[email];
+  setLoginGuardState(state);
+}
+
+function registerFailedLogin(email) {
+  const state = getLoginGuardState();
+  const prev = getLoginGuardForEmail(email);
+  const nextCount = prev.count + 1;
+  const lockUntil = nextCount >= LOGIN_MAX_ATTEMPTS ? (Date.now() + LOGIN_LOCK_MS) : 0;
+  state[email] = { count: lockUntil ? 0 : nextCount, lockUntil };
+  setLoginGuardState(state);
+  return lockUntil ? (lockUntil - Date.now()) : 0;
 }
 
 /* ----------------------------------------------------------
@@ -382,16 +448,15 @@ async function handleSignupStep1(e) {
 
   // ── Generate and send OTP ─────────────────────────────────
   // Rate-limit: prevent sending more than 1 OTP per 60 seconds
-  const lastOtpTime = parseInt(sessionStorage.getItem(OTP_RATE_LIMIT_KEY) || '0', 10);
-  const now = Date.now();
-  if (now - lastOtpTime < OTP_RATE_LIMIT_MS) {
-    const remaining = Math.ceil((OTP_RATE_LIMIT_MS - (now - lastOtpTime)) / 1000);
+  const remainingMs = getOTPCooldownRemainingMs(email);
+  if (remainingMs > 0) {
+    const remaining = Math.ceil(remainingMs / 1000);
     toast(`Please wait ${remaining}s before requesting another OTP.`, '⚠️');
     return;
   }
-  sessionStorage.setItem(OTP_RATE_LIMIT_KEY, now.toString());
 
   const otpCode   = generateOTP();
+  const otpHash   = await hashPassword(otpCode, email);
   const expiresAt = Date.now() + OTP_TTL_MS;
 
   // Disable the send button while we email the OTP
@@ -407,9 +472,11 @@ async function handleSignupStep1(e) {
     return;
   }
 
+  setOTPRateLimitState(email, Date.now());
+
   // ── Save pending OTP to sessionStorage (NOT localStorage) ─
   // Account is NOT written to localStorage yet.
-  savePendingOTP({ name, email, hashedPassword, otpCode, expiresAt });
+  savePendingOTP({ name, email, hashedPassword, otpHash, expiresAt });
 
   // ── Switch UI to OTP step ─────────────────────────────────
   const step1 = document.getElementById('signup-step-1');
@@ -471,8 +538,11 @@ async function handleOTPVerification(e) {
     return;
   }
 
-  // ── Compare OTP (timing-safe to prevent brute-force guessing) ─
-  if (!timingSafeEqual(enteredOTP, pending.otpCode)) {
+  // ── Compare OTP (timing-safe + hashed in session) ─
+  const enteredOtpHash = await hashPassword(enteredOTP, pending.email);
+  const expectedOtpHash = pending.otpHash
+    || (pending.otpCode ? await hashPassword(pending.otpCode, pending.email) : '');
+  if (!expectedOtpHash || !timingSafeEqual(enteredOtpHash, expectedOtpHash)) {
     toast('Incorrect OTP. Please check your email and try again.', '❌');
     // Clear the input so the user re-types
     const otpInput = document.getElementById('otp-input');
@@ -548,6 +618,7 @@ async function handleResendOTP() {
   if (resendBtn) { resendBtn.disabled = true; }
 
   const newOTP       = generateOTP();
+  const newOtpHash   = await hashPassword(newOTP, pending.email);
   const newExpiresAt = Date.now() + OTP_TTL_MS;
 
   const sent = await sendOTPEmail(pending.name, pending.email, newOTP);
@@ -559,7 +630,8 @@ async function handleResendOTP() {
   }
 
   // Update pending OTP with new code and expiry
-  savePendingOTP({ ...pending, otpCode: newOTP, expiresAt: newExpiresAt });
+  savePendingOTP({ ...pending, otpHash: newOtpHash, expiresAt: newExpiresAt });
+  setOTPRateLimitState(pending.email, Date.now());
 
   // Clear the OTP input field
   const otpInput = document.getElementById('otp-input');
@@ -590,6 +662,13 @@ async function handleLogin(e) {
     return;
   }
 
+  const guard = getLoginGuardForEmail(email);
+  if (guard.lockUntil > Date.now()) {
+    const waitSec = Math.ceil((guard.lockUntil - Date.now()) / 1000);
+    toast(`Too many login attempts. Try again in ${waitSec}s.`, '⏳');
+    return;
+  }
+
   // Hash the entered password the same way it was hashed on signup
   const hashedPassword = await hashPassword(password, email);
 
@@ -604,11 +683,16 @@ async function handleLogin(e) {
   const match      = timingSafeEqual(hashedPassword, storedHash);
 
   if (!user || !match) {
-    // Generic message — do NOT say "email not found" or "wrong password"
+    const lockRemainingMs = registerFailedLogin(email);
+    if (lockRemainingMs > 0) {
+      toast(`Too many login attempts. Try again in ${Math.ceil(lockRemainingMs / 1000)}s.`, '⏳');
+      return;
+    }
     toast('Invalid credentials. Please check your email and password.', '⚠️');
     return;
   }
 
+  resetLoginGuard(email);
   // Only name and email are stored in session — never the password hash
   setLoggedInUser({ name: user.name, email: user.email });
   toast('Login successful! Welcome back.', '✅');
