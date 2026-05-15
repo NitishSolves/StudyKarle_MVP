@@ -220,7 +220,7 @@ function generateOTP() {
   return raw.slice(-OTP_LENGTH);
 }
 
-function generateOTPSecret() {
+function generateOTPNonce() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
@@ -274,7 +274,7 @@ async function sendOTPEmail(name, email, otpCode) {
 
 /**
  * Saves the pending OTP data to sessionStorage.
- * @param {{ name, email, hashedPassword, otpHash, otpSalt, expiresAt }} data
+ * @param {{ name, email, hashedPassword, otpHash, otpNonce, expiresAt }} data
  */
 function savePendingOTP(data) {
   sessionStorage.setItem(OTP_SESSION_KEY, JSON.stringify(data));
@@ -480,13 +480,13 @@ async function handleSignupStep1(e) {
     return;
   }
 
-  const otpSalt = generateOTPSecret();
-  const otpHash = await hashPassword(otpCode, otpSalt);
+  const otpNonce = generateOTPNonce();
+  const otpHash = await hashPassword(otpCode, otpNonce);
   setOTPRateLimitState(email, Date.now());
 
   // ── Save pending OTP to sessionStorage (NOT localStorage) ─
   // Account is NOT written to localStorage yet.
-  savePendingOTP({ name, email, hashedPassword, otpHash, otpSalt, expiresAt });
+  savePendingOTP({ name, email, hashedPassword, otpHash, otpNonce, expiresAt });
 
   // ── Switch UI to OTP step ─────────────────────────────────
   const step1 = document.getElementById('signup-step-1');
@@ -549,14 +549,14 @@ async function handleOTPVerification(e) {
   }
 
   // ── Compare OTP (timing-safe + hashed in session) ─
-  if (!pending.otpHash || !pending.otpSalt) {
+  if (!pending.otpHash || !pending.otpNonce) {
     toast('OTP session expired. Please request a new OTP.', '⚠️');
     clearPendingOTP();
     stopOTPCountdown();
     return;
   }
 
-  const enteredOtpHash = await hashPassword(enteredOTP, pending.otpSalt);
+  const enteredOtpHash = await hashPassword(enteredOTP, pending.otpNonce);
   if (!timingSafeEqual(enteredOtpHash, pending.otpHash)) {
     toast('Incorrect OTP. Please check your email and try again.', '❌');
     // Clear the input so the user re-types
@@ -643,10 +643,10 @@ async function handleResendOTP() {
     return;
   }
 
-  const newOtpSalt = generateOTPSecret();
-  const newOtpHash = await hashPassword(newOTP, newOtpSalt);
+  const newOtpNonce = generateOTPNonce();
+  const newOtpHash = await hashPassword(newOTP, newOtpNonce);
   // Update pending OTP with new code and expiry
-  savePendingOTP({ ...pending, otpHash: newOtpHash, otpSalt: newOtpSalt, expiresAt: newExpiresAt });
+  savePendingOTP({ ...pending, otpHash: newOtpHash, otpNonce: newOtpNonce, expiresAt: newExpiresAt });
   setOTPRateLimitState(pending.email, Date.now());
 
   // Clear the OTP input field
