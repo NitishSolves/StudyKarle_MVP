@@ -344,9 +344,11 @@ function resetLoginGuard(email) {
 
 function registerFailedLogin(email) {
   const state = getLoginGuardState();
-  const prev = getLoginGuardForEmail(email);
-  const nextCount = prev.count + 1;
+  const prev = state[email];
+  const prevCount = Number.isFinite(prev?.count) ? prev.count : 0;
+  const nextCount = prevCount + 1;
   const lockUntil = nextCount >= LOGIN_MAX_ATTEMPTS ? (Date.now() + LOGIN_LOCK_MS) : 0;
+  // Reset count on lock so attempts restart cleanly after lock duration ends.
   state[email] = { count: lockUntil ? 0 : nextCount, lockUntil };
   setLoginGuardState(state);
   return lockUntil ? (lockUntil - Date.now()) : 0;
@@ -540,6 +542,7 @@ async function handleOTPVerification(e) {
 
   // ── Compare OTP (timing-safe + hashed in session) ─
   const enteredOtpHash = await hashPassword(enteredOTP, pending.email);
+  // Legacy fallback supports OTP sessions created before otpHash was introduced.
   const expectedOtpHash = pending.otpHash
     || (pending.otpCode ? await hashPassword(pending.otpCode, pending.email) : '');
   if (!expectedOtpHash || !timingSafeEqual(enteredOtpHash, expectedOtpHash)) {
